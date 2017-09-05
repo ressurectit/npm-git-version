@@ -1,0 +1,32 @@
+{
+    "compilerOptions":
+    {
+        "target": "es5",
+        "module": "commonjs",
+        "sourceMap": false,
+        "declaration": true,
+        "noImplicitAny": true,
+        "moduleResolution": "node",
+        "strictNullChecks": true,
+        "outDir": ".",
+        "newLine": "LF",
+        "lib": 
+        [
+            "es2016"
+        ],
+        "types": 
+        [
+            "node",
+            "simple-git"
+        ],
+        "typeRoots": 
+        [
+            "node_modules/@anglr/types",
+            "node_modules/@types"
+        ]
+    },
+    "exclude": 
+    [
+        "node_modules"
+    ]
+}

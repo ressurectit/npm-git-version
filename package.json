@@ -1,0 +1,49 @@
+{
+    "name": "npm-git-version",
+    "version": "1.0.0",
+    "description": "NPM utility that gets next version of application according git branch and tags",
+    "main": "index.js",
+    "bin": {
+        "ngv": "bin/npm-git-version.js"
+    },
+    "scripts": {
+        "prebuild": "npm run clean",
+        "build": "npm run tsc",
+        "clean": "rimraf *.d.ts index.js *.map *.log bin",
+        "clean:deps": "rimraf node_modules",
+        "clean:all": "npm run clean && npm run clean:deps",
+        "tsc": "tsc",
+        "tsc:w": "tsc -w --sourceMap",
+        "tsc:debug": "tsc --sourceMap",
+        "prepublishOnly": "npm run build",
+        "postpublish": "npm run clean",
+        "deploy:stable": "npp -b",
+        "deploy:next": "npp -p -s \"beta\" -t \"next\"",
+        "deploy:stable:local": "npp -b --registry http://local:4873",
+        "deploy:next:local": "npp -p -b -s \"beta\" -t \"next\" --registry http://local:4873"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ressurectit/npm-git-version.git"
+    },
+    "keywords": [
+        "git",
+        "version",
+        "tool"
+    ],
+    "author": "kukjevov",
+    "license": "MIT",
+    "dependencies": {
+        "command-line-args": "~4.0.7",
+        "semver": "~5.4.1",
+        "simple-git": "~1.77.0"
+    },
+    "devDependencies": {
+        "@types/node": "~8.0.26",
+        "@types/command-line-args": "~4.0.1",
+        "@anglr/types": "1.1.3",
+        "rimraf": "~2.6.1",
+        "typescript": "~2.5.2",
+        "npm-publish-pkg": "1.2.0"
+    }
+}

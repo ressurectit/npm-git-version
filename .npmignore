@@ -1,0 +1,8 @@
+/.vscode/
+/src/
+.jsbeautifyrc
+tsconfig.json
+*.ts
+*.map
+*.log
+!*.d.ts
