@@ -13,6 +13,7 @@ export interface IHelpObject
     buildNumber?: number;
     tagPrefix?: string;
     ignoreBranchPrefix?: string;
+    pre?: boolean;
     suffix?: string;
     currentVersion?: string;
 }
@@ -27,11 +28,11 @@ export function processArguments(): IHelpObject
         { name: "help", alias: "h", type: Boolean, description: "Displays help for this command line tool." },
         { name: "branchName", type: String, description: "Name of branch used for getting version, if not specified current branch will be used, if detached error will be thrown.", typeLabel: "<branchName>", defaultOption: true },
         { name: "buildNumber", alias: "b", type: Number, description: "Build number will be used if suffix is specified, defaults to 0.", typeLabel: "<buildNumber>" },
-        { name: "tagPrefix", alias: "t", type: String, description: "Tag prefix (RegExp) used for pairing branch and tag for getting version. Defaults to 'v'", typeLabel: "<prefix>", defaultValue: "v" },
+        { name: "tagPrefix", alias: "t", type: String, description: "Tag prefix (RegExp) used for pairing branch and tag for getting version.", typeLabel: "<prefix>"},
         { name: "ignoreBranchPrefix", alias: "i", type: String, description: "Branch prefix name that will be ignored (RegExp) and stripped of branch during version paring.", typeLabel: "<ignorePrefix>" },
         { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned.", defaultValue: false },
         { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
-        { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" }
+        { name: "currentVersion", alias: "v", type: String, description: "FIXME: Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" }
     ];
 
     let args: IHelpObject = commandLineArgs(definitions);
@@ -89,6 +90,26 @@ export class VersionsExtractor
      */
     private _branchName: string;
 
+    /**
+     * Name of current branch stripped only to version
+     */
+    private _branchVersion: string;
+
+    /**
+     * Stripped branch prefix from branch name
+     */
+    private _branchPrefix: string = "";
+
+    /**
+     * Name of last matching tag
+     */
+    private _lastMatchingTag: string;
+
+    /**
+     * Indication that tag is on current HEAD
+     */
+    private _currentTag: boolean = false;
+
     //######################### constructor #########################
     constructor(private _config: IHelpObject)
     {
@@ -128,8 +149,107 @@ export class VersionsExtractor
     private async _runProcessing()
     {
         this._branchName = await this._getBranchName();
+        this._processBranchName();
+        this._lastMatchingTag = await this._getLastMatchingTag();
 
         this._processResolve(this);
+    }
+
+    /**
+     * Processes branch name and extracts prefix and pure version number
+     */
+    private _processBranchName()
+    {
+        this._branchVersion = this._branchName;
+
+        //no profix and wrong format
+        if(!this._config.ignoreBranchPrefix && !/^\d+\.\d+$/g.test(this._branchName))
+        {
+            this._processReject(`Wrong branch name '${this._branchName}', no prefix specified and branch is not in correct format!`);
+
+            return;
+        }
+
+        let regex = new RegExp(`^${this._config.ignoreBranchPrefix}`, 'gi');
+        let matches = regex.exec(this._branchName);
+
+        //prefix present
+        if(matches)
+        {
+            this._branchPrefix = matches[0].replace(/\/$/g, '');
+            this._branchVersion = this._branchName.replace(regex, '');
+        }
+
+        //after prefix strip still wrong format
+        if(!/^\d+\.\d+$/g.test(this._branchVersion))
+        {
+            this._processReject(`Wrong branch name '${this._branchName}', probably wrong prefix regex, extracted version '${this._branchVersion}' is not ok!`);
+
+            return;
+        }
+    }
+
+    /**
+     * Gets last matching tag
+     */
+    private async _getLastMatchingTag(): Promise<string>
+    {
+        return new Promise<string>((resolve) =>
+        {
+            (<any>this._git).raw([
+                                     "log",
+                                     '--pretty="%D"',
+                                     "--tags",
+                                     "--no-walk"
+                                 ],
+                                 this._errorHandle(result =>
+                                 {
+                                     let tags = (result.split('\n') as string[])
+                                        .filter(itm => itm)
+                                        .map(itm => itm.replace(/^"|"$/g, ''))
+                                        .map(itm => itm.replace(/^.*?tag:\s?(.*?)(?:$|,.*)/g, '$1'))
+                                        .filter(itm => itm);
+
+                                     for(let x = 0; x < tags.length; x++)
+                                     {
+                                         let matches = new RegExp(`^${this._config.tagPrefix}(${this._branchVersion}.*?)$`, 'gi')
+                                            .exec(tags[x]);
+
+                                         if(matches)
+                                         {
+                                             let match = matches[1];
+
+                                             this._git.revparse([
+                                                                    "--short",
+                                                                    tags[x]
+                                                                ], this._errorHandle(tagResult =>
+                                                                {
+                                                                    this._git.revparse([
+                                                                                           "--short",
+                                                                                           "HEAD"
+                                                                                       ], this._errorHandle(result =>
+                                                                                       {
+                                                                                           if(tagResult == result)
+                                                                                           {
+                                                                                               this._currentTag = true;
+                                                                                               console.log("ok2");
+                                                                                               resolve(match);
+                                                                                           }
+                                                                                       }));
+                                                                }));
+
+                                             return;
+                                         }
+                                     }
+
+                                     if(!this._config.pre)
+                                     {
+                                         this._currentTag = true;
+                                     }
+
+                                     resolve(`${this._branchVersion}.0`);
+                                 }));
+        });
     }
 
     /**
