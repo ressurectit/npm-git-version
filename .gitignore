@@ -1,6 +1,7 @@
 node_modules/
 package-lock.json
 *.d.ts
+*.map
 *.js
 *.log
 *.bak

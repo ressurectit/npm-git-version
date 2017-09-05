@@ -3,6 +3,7 @@
     "version": "1.0.0",
     "description": "NPM utility that gets next version of application according git branch and tags",
     "main": "index.js",
+    "typings": "index.d.ts",
     "bin": {
         "ngv": "bin/npm-git-version.js"
     },
@@ -35,13 +36,14 @@
     "license": "MIT",
     "dependencies": {
         "command-line-args": "~4.0.7",
+        "command-line-usage": "~4.0.1",
         "semver": "~5.4.1",
         "simple-git": "~1.77.0"
     },
     "devDependencies": {
         "@types/node": "~8.0.26",
         "@types/command-line-args": "~4.0.1",
-        "@anglr/types": "1.1.3",
+        "@anglr/types": "1.1.6",
         "rimraf": "~2.6.1",
         "typescript": "~2.5.2",
         "npm-publish-pkg": "1.2.0"

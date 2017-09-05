@@ -1,12 +1,21 @@
 #!/usr/bin/env node
 
-import {IHelpObject, processArguments, VersionsProcessor} from "../index";
+import {IHelpObject, processArguments, VersionsExtractor} from "../index";
 
-// var args: IHelpObject = processArguments();
+let args: IHelpObject = processArguments();
 
-// var processor: VersionsProcessor = new VersionsProcessor(args);
-// processor.validateConfig()
-//     .findSourceVersion()
-//     .updateVersions();
 
-console.log("ok");
+let extractor: VersionsExtractor = new VersionsExtractor(args);
+
+extractor.process()
+    .then(extractor => 
+    {
+        console.log(extractor);
+    })
+    .catch(reason =>
+    {
+        console.log(`Processing failed: '${reason}'!`);
+
+        process.exit(-1);
+    });
+

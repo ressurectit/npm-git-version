@@ -1,218 +1,179 @@
-import * as commandLineArgs from "command-line-args";
-import * as fs from "fs";
-import * as path from "path";
-import * as childProcess from "child_process";
 import * as git from "simple-git";
+import * as commandLineArgs from "command-line-args";
+import commandLineUsage = require("command-line-usage");
+import {UsageOptionDefinition} from 'command-line-usage-options';
 
-git()
-
+/**
+ * Description of help parameters
+ */
 export interface IHelpObject
 {
     help?: boolean;
-    config?: string;
-    pre?: boolean;
-    buildNumber?: boolean;
-    majorNumber?: boolean;
-    ignorePrefix?: string;
-    specificVersion?: string;
-    preReleaseSuffix?: string;
+    branchName?: string;
+    buildNumber?: number;
+    tagPrefix?: string;
+    ignoreBranchPrefix?: string;
+    suffix?: string;
+    currentVersion?: string;
 }
 
-interface IConfigItem
-{
-    inputFilesPattern: string[];
-    searchInPath?: string[];
-    searchFromPath?: string[];
-    searchForPattern: string;
-    replaceWith: string;
-    isVersionReplaceSource?: boolean;
-}
-
-interface IConfig extends Array<IConfigItem>
-{
-}
-
+/**
+ * Process arguments and returns parsed object
+ */
 export function processArguments(): IHelpObject
 {
-    var cli = commandLineArgs(
+    let definitions: UsageOptionDefinition[] =
     [
-        // { name: "help", alias: "h", type: Boolean, description: "Displays help for this command line tool." },
-        // { name: "config", alias: "c", type: String, description: "Relative path to configuration file that contains definition of requested replaces.", typeLabel: "<pathToConfig>", defaultOption: true },
-        // { name: "pre", alias: "p", type: Boolean, description: "Indication that version should be set to prerelease version." },
-        // { name: "buildNumber", alias: "b", type: Boolean, description: "Indicates that build number of version should be incremented." },
-        // { name: "majorNumber", alias: "m", type: Boolean, description: "Indicates that major number of version should be incremented." },
-        // { name: "ignorePrefix", alias: "i", type: String, description: "Version prefix regular expression pattern. This prefix is not part of semver version and will be ignored during version change.", typeLabel: "<prefix>" },
-        // { name: "specificVersion", alias: "v", type: String, description: "Specific version that is going to be set. If this is set overrides any other version parameter.", typeLabel: "<version>" },
-        // { name: "preReleaseSuffix", alias: "s", type: String, description: "Suffix that will be added to version number. If not specified 'pre' is used. It is not used without 'pre' parameter.", defaultValue: "alpha", typeLabel: "<suffix>"},
-    ]);
+        { name: "help", alias: "h", type: Boolean, description: "Displays help for this command line tool." },
+        { name: "branchName", type: String, description: "Name of branch used for getting version, if not specified current branch will be used, if detached error will be thrown.", typeLabel: "<branchName>", defaultOption: true },
+        { name: "buildNumber", alias: "b", type: Number, description: "Build number will be used if suffix is specified, defaults to 0.", typeLabel: "<buildNumber>" },
+        { name: "tagPrefix", alias: "t", type: String, description: "Tag prefix (RegExp) used for pairing branch and tag for getting version. Defaults to 'v'", typeLabel: "<prefix>", defaultValue: "v" },
+        { name: "ignoreBranchPrefix", alias: "i", type: String, description: "Branch prefix name that will be ignored (RegExp) and stripped of branch during version paring.", typeLabel: "<ignorePrefix>" },
+        { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned.", defaultValue: false },
+        { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
+        { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" }
+    ];
 
-    var args: IHelpObject = <IHelpObject>cli.parse();
+    let args: IHelpObject = commandLineArgs(definitions);
 
     if(args.help)
     {
-        console.log(cli.getUsage(
-        {
-            title: "npm-regexp-semver (nrs)",
-            description:
-`Application that allows updating versions using semver version found in files using regexp.
-You have to specify one of 'searchInPath', 'searchFromPath'.
+        console.log(commandLineUsage(
+        [
+            {
+                header: "description",
+                content:
+                [
+                    "Gets version of application based on branch name and existing tags",
+                    "",
+                    "Command:",
+                    "ngv <branchName> [options]"
+                ]
+            },
+            {
+                header: "options",
+                optionList: definitions
+            }
+        ]));
 
-If no config is specified default config named 'nrs.config.json' will be used.;
-
-Config format:
-[
-    {
-        inputFilesPattern: "arrayOfRelativePathsWithWildcards",
-        searchInPath: "arrayOfPathsThatAreSearchedInNonRecursive",
-        searchFromPath: "arrayOfPathsThatAreSearchedInRecursive",
-        searchForPattern: "javascriptRegexpSearchPattern",
-        replaceWith: "replaceWithPatterWithVersionVariable'\${version}'",
-        isVersionReplaceSource: optionalBooleanParameterIndicatingSourceVersionForReplace
-    },
-    .
-    .
-    .
-    {
-        "inputFilesPattern": ["package.json"],
-        "searchForPattern": "\"version\": \"(.*?)\",",
-        "replaceWith": "\"version\": \"\${version}\",",
-        "isVersionReplaceSource": true
-    }
-]
-`,
-            examples:
-            [
-                {
-                    example: "> nrs",
-                    description: 'Updates versions using configuration from file "nrs.config.json", updates minor version 1.2.3 => 1.3.0'
-                }
-            ]
-        }));
-
-        process.exit();
+        process.exit(0);
     }
 
     return args;
 }
 
 /**
- * Processor that is capable of processing files that should contain versions
+ * Extractor that extracts version number for current git repository
  */
-export class VersionsProcessor
+export class VersionsExtractor
 {
     //######################### private fields #########################
-    private _configPath: string = "";
-    private _configuration: IConfig|null = null;
-    private _newVersion: string = "";
-    private _versionPrefix: string = "";
+
+    /**
+     * Instance of git wrapper
+     */
+    private _git: git.Git;
+
+    /**
+     * Resolve method for process method
+     */
+    private _processResolve: (value: VersionsExtractor) => void;
+
+    /**
+     * Reject method for process method
+     */
+    private _processReject: (reason: any) => void;
+
+    /**
+     * Name of current branch
+     */
+    private _branchName: string;
 
     //######################### constructor #########################
     constructor(private _config: IHelpObject)
     {
-        this._configPath = path.join(process.cwd(), (_config.config || "nrs.config.json"));
+        //Tests whether application is run inside git repository
+        this._git = git().status(error =>
+        {
+            if(error)
+            {
+                console.log(error);
+
+                process.exit(-1);
+            }
+        });
     }
 
     //######################### public methods #########################
-    public validateConfig(): VersionsProcessor
+
+    /**
+     * Process extraction of version
+     */
+    public process(): Promise<VersionsExtractor>
     {
-        console.log("Validating provided parameters");
+        this._runProcessing();
 
-        try
+        return new Promise((resolve, reject) =>
         {
-            if(!fs.statSync(this._configPath).isFile())
-            {
-                console.error(`'${this._configPath}' is not a file!`);
-
-                process.exit(1);
-            }
-        }
-        catch (error)
-        {
-            console.error(`There is no '${this._configPath}'. Original ${error}`);
-
-            process.exit(1);
-        }
-
-        this._configuration = require(this._configPath);
-
-        if(!(this._configuration instanceof Array))
-        {
-            console.error(`Content '${this._configPath}' is not a proper format, it is not an array!`);
-
-            process.exit(1);
-        }
-
-        console.log("Items that does not contain 'inputFilesPattern' or 'searchForPattern' or 'replaceWith' or at least one of 'searchInPath' or 'searchFromPath' are skipped.");
-        this._configuration = [];
-
-        if(this._configuration.length < 1)
-        {
-            console.error(`Content '${this._configPath}' is an empty array!`);
-
-            process.exit(1);
-        }
-
-        return this;
-    }
-
-    public findSourceVersion(): VersionsProcessor|null
-    {
-        return null;
+            this._processResolve = resolve;
+            this._processReject = reject;
+        });
     }
 
     //######################### private methods #########################
-    private _readFile(path: string): string|null
+
+    /**
+     * Runs internal git processing
+     */
+    private async _runProcessing()
     {
-        try
-        {
-            return fs.readFileSync(path, 'utf8');
-        }
-        catch(error)
-        {
-            console.error(`Unexpected error occured! Original ${error}`);
+        this._branchName = await this._getBranchName();
 
-            process.exit(1);
-        }
-
-        return null;
+        this._processResolve(this);
     }
 
-    private _writeFile(path: string, content: string): void
+    /**
+     * Gets requested branch name
+     */
+    private async _getBranchName(): Promise<string>
     {
-        try
+        if(this._config.branchName)
         {
-            fs.writeFileSync(path, content, 'utf8');
+            return this._config.branchName;
         }
-        catch(error)
-        {
-            console.error(`Unexpected error occured! Original ${error}`);
 
-            process.exit(1);
-        }
+        return new Promise<string>((resolve) =>
+        {
+            this._git.branch(this._errorHandle(result =>
+            {
+                if(result.detached)
+                {
+                    this._processReject("Unable to proceed if 'HEAD' is detached and no 'branchName' was specified!");
+
+                    return;
+                }
+
+                resolve(result.current);
+            }));
+        });
     }
-    
-    private _updateVersion(version: string): string
+
+    /**
+     * Creates handle function with automatic error handling
+     * @param callback Callback called if result was success
+     */
+    private _errorHandle(callback: (result: any) => void): (error: any, result: any) => void
     {
-        var identifier: string = "";
-        
-        if(this._config.pre)
+        return (error: any, result: any) =>
         {
-            identifier = "pre";
-        }
-        
-        if(this._config.buildNumber)
-        {
-            identifier += "patch";
-        }
-        else if(this._config.majorNumber)
-        {
-            identifier += "major";
-        }
-        else
-        {
-            identifier += "minor";
-        }
-        
-        return "";
+            if(error)
+            {
+                this._processReject(error);
+
+                return;
+            }
+
+            callback(result);
+        };
     }
 }

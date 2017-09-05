@@ -3,13 +3,13 @@
     {
         "target": "es5",
         "module": "commonjs",
+        "moduleResolution": "node",
         "sourceMap": false,
         "declaration": true,
         "noImplicitAny": true,
-        "moduleResolution": "node",
         "strictNullChecks": true,
-        "outDir": ".",
         "newLine": "LF",
+        "outDir": ".",
         "lib": 
         [
             "es2016"
@@ -17,7 +17,10 @@
         "types": 
         [
             "node",
-            "simple-git"
+            "simple-git",
+            "command-line-args",
+            "command-line-usage",
+            "command-line-usage-options"
         ],
         "typeRoots": 
         [
