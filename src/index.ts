@@ -101,14 +101,19 @@ export class VersionsExtractor
     private _branchPrefix: string = "";
 
     /**
-     * Name of last matching tag
+     * Number of last matching version
      */
-    private _lastMatchingTag: string;
+    private _lastMatchingVersion: string;
 
     /**
      * Indication that tag is on current HEAD
      */
     private _currentTag: boolean = false;
+
+    /**
+     * Indication that version is new for this branch
+     */
+    private _startingVersion: boolean = false;
 
     //######################### constructor #########################
     constructor(private _config: IHelpObject)
@@ -150,7 +155,7 @@ export class VersionsExtractor
     {
         this._branchName = await this._getBranchName();
         this._processBranchName();
-        this._lastMatchingTag = await this._getLastMatchingTag();
+        this._lastMatchingVersion = await this._getLastMatchingTag();
 
         this._processResolve(this);
     }
@@ -196,59 +201,80 @@ export class VersionsExtractor
     {
         return new Promise<string>((resolve) =>
         {
-            (<any>this._git).raw([
-                                     "log",
-                                     '--pretty="%D"',
-                                     "--tags",
-                                     "--no-walk"
-                                 ],
-                                 this._errorHandle(result =>
-                                 {
-                                     let tags = (result.split('\n') as string[])
-                                        .filter(itm => itm)
-                                        .map(itm => itm.replace(/^"|"$/g, ''))
-                                        .map(itm => itm.replace(/^.*?tag:\s?(.*?)(?:$|,.*)/g, '$1'))
-                                        .filter(itm => itm);
+            //gets all tags
+            this._git.raw([
+                              "log",
+                              '--pretty="%D"',
+                              "--tags",
+                              "--no-walk"
+                          ],
+                          this._errorHandle(result =>
+                          {
+                              //get array of tag names
+                              let tags = (result.split('\n') as string[])
+                                  .filter(itm => itm)
+                                  .map(itm => itm.replace(/^"|"$/g, ''))
+                                  .map(itm => itm.replace(/^.*?tag:\s?(.*?)(?:$|,.*)/g, '$1'))
+                                  .filter(itm => itm);
 
-                                     for(let x = 0; x < tags.length; x++)
-                                     {
-                                         let matches = new RegExp(`^${this._config.tagPrefix}(${this._branchVersion}.*?)$`, 'gi')
-                                            .exec(tags[x]);
+                              for(let x = 0; x < tags.length; x++)
+                              {
+                                  let matches = new RegExp(`^${this._config.tagPrefix}(${this._branchVersion}.*?)$`, 'gi')
+                                      .exec(tags[x]);
 
-                                         if(matches)
-                                         {
-                                             let match = matches[1];
+                                  //tag and branch match
+                                  if(matches)
+                                  {
+                                      let match = matches[1];
 
-                                             this._git.revparse([
-                                                                    "--short",
-                                                                    tags[x]
-                                                                ], this._errorHandle(tagResult =>
-                                                                {
-                                                                    this._git.revparse([
-                                                                                           "--short",
-                                                                                           "HEAD"
-                                                                                       ], this._errorHandle(result =>
-                                                                                       {
-                                                                                           if(tagResult == result)
-                                                                                           {
-                                                                                               this._currentTag = true;
-                                                                                               console.log("ok2");
-                                                                                               resolve(match);
-                                                                                           }
-                                                                                       }));
-                                                                }));
+                                      let promises: Promise<string>[] =
+                                      [
+                                          new Promise<string>(resolveHash =>
+                                          {
+                                              this._git.raw([
+                                                                "rev-list",
+                                                                "-n",
+                                                                "1",
+                                                                tags[x]
+                                                            ], 
+                                                            this._errorHandle(tagResult =>
+                                                            {
+                                                                resolveHash(tagResult.trim());
+                                                            }));
+                                          }),
+                                          new Promise<string>(resolveHash =>
+                                          {
+                                              this._git.revparse([
+                                                                     "HEAD"
+                                                                 ], 
+                                                                 this._errorHandle(tagResult =>
+                                                                 {
+                                                                     resolveHash(tagResult.trim());
+                                                                 }));
+                                          })
+                                      ];
 
-                                             return;
-                                         }
-                                     }
+                                      Promise.all(promises).then(value =>
+                                      {
+                                          if(value[0] == value[1])
+                                          {
+                                              this._currentTag = true;
+                                          }
 
-                                     if(!this._config.pre)
-                                     {
-                                         this._currentTag = true;
-                                     }
+                                          resolve(match);
+                                      });
 
-                                     resolve(`${this._branchVersion}.0`);
-                                 }));
+                                      return;
+                                  }
+                              }
+
+                              if(!this._config.pre)
+                              {
+                                  this._startingVersion = true;
+                              }
+
+                              resolve(`${this._branchVersion}.0`);
+                          }));
         });
     }
 
