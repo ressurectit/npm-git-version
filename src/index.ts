@@ -235,8 +235,8 @@ export class VersionsExtractor
      */
     private _applyBuildNumber(): void
     {
-        //release version
-        if(!this._config.pre)
+        //release version or current tag is on same commit as HEAD
+        if(!this._config.pre || this._currentTag)
         {
             return;
         }
