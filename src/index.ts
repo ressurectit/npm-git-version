@@ -1,7 +1,9 @@
 import * as git from "simple-git";
+import * as semver from "semver";
 import * as commandLineArgs from "command-line-args";
 import commandLineUsage = require("command-line-usage");
 import {UsageOptionDefinition} from 'command-line-usage-options';
+import {ReleaseType} from 'semver';
 
 /**
  * Description of help parameters
@@ -32,7 +34,7 @@ export function processArguments(): IHelpObject
         { name: "ignoreBranchPrefix", alias: "i", type: String, description: "Branch prefix name that will be ignored (RegExp) and stripped of branch during version paring.", typeLabel: "<ignorePrefix>" },
         { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned.", defaultValue: false },
         { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
-        { name: "currentVersion", alias: "v", type: String, description: "FIXME: Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" }
+        { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" }
     ];
 
     let args: IHelpObject = commandLineArgs(definitions);
@@ -115,19 +117,77 @@ export class VersionsExtractor
      */
     private _startingVersion: boolean = false;
 
+    /**
+     * Computed version for next build
+     */
+    private _version: string;
+
+    //######################### public properties #########################
+
+    /**
+     * Gets stripped branch prefix from branch name
+     */
+    public get branchPrefix(): string
+    {
+        return this._branchPrefix;
+    }
+
+    /**
+     * Gets name of current branch
+     */
+    public get branchName(): string
+    {
+        return this._branchName;
+    }
+
+    /**
+     * Gets name of current branch stripped only to version
+     */
+    public get branchVersion(): string
+    {
+        return this._branchVersion;
+    }
+
+    /**
+     * Gets computed version for next build
+     */
+    public get version(): string
+    {
+        return this._version;
+    }
+
+    /**
+     * Gets number of last matching version
+     */
+    public get lastMatchingVersion(): string
+    {
+        return this._lastMatchingVersion;
+    }
+
+    //######################### private properties #########################
+
+    /**
+     * Gets prerelease suffix
+     */
+    private get prereleaseSuffix(): string
+    {
+        if(this._config.pre)
+        {
+            return `${this._branchPrefix ? this._branchPrefix + "-" : ""}${this._config.suffix}`;
+        }
+
+        return "";
+    }
+
     //######################### constructor #########################
     constructor(private _config: IHelpObject)
     {
-        //Tests whether application is run inside git repository
-        this._git = git().status(error =>
+        if(this._config.pre && !this._config.suffix)
         {
-            if(error)
-            {
-                console.log(error);
+            console.error("Prerelease version was set, but no suffix was provided!");
 
-                process.exit(-1);
-            }
-        });
+            process.exit(-1);
+        }
     }
 
     //######################### public methods #########################
@@ -137,13 +197,21 @@ export class VersionsExtractor
      */
     public process(): Promise<VersionsExtractor>
     {
-        this._runProcessing();
-
-        return new Promise((resolve, reject) =>
+        let result = new Promise<VersionsExtractor>((resolve, reject) =>
         {
             this._processResolve = resolve;
             this._processReject = reject;
         });
+
+        //Tests whether application is run inside git repository
+        this._git = git().status(this._errorHandle(result =>
+        {
+            console.log("Git repository available.");
+        }));
+
+        this._runProcessing();
+
+        return result;
     }
 
     //######################### private methods #########################
@@ -156,8 +224,89 @@ export class VersionsExtractor
         this._branchName = await this._getBranchName();
         this._processBranchName();
         this._lastMatchingVersion = await this._getLastMatchingTag();
+        this._computeVersion();
+        this._applyBuildNumber();
 
         this._processResolve(this);
+    }
+
+    /**
+     * Applies specified build number for prerelease version
+     */
+    private _applyBuildNumber(): void
+    {
+        //release version
+        if(!this._config.pre)
+        {
+            return;
+        }
+
+        //no build number or current version
+        if(!this._config.buildNumber && !this._config.currentVersion)
+        {
+            return;
+        }
+
+        //build number higher priority
+        if(this._config.buildNumber)
+        {
+            this._version = this._version.replace(/\d+$/g, `${this._config.buildNumber}`);
+
+            return;
+        }
+
+        //current version specified as parameter
+        if(this._config.currentVersion)
+        {
+            let currentVersionSemver = semver.parse(this._version);
+            let originalVersionSemver = semver.parse(this._config.currentVersion);
+
+            //invalid one of versions
+            if(!currentVersionSemver || !originalVersionSemver)
+            {
+                this._processReject(`Unable to parse version '${this._version}' or '${this._config.currentVersion}'!`);
+    
+                return;
+            }
+
+            //version are in match use it as base for increment
+            if(`${currentVersionSemver.major}.${currentVersionSemver.minor}.${currentVersionSemver.patch}-${currentVersionSemver.prerelease[0]}` == `${originalVersionSemver.major}.${originalVersionSemver.minor}.${originalVersionSemver.patch}-${originalVersionSemver.prerelease[0]}`)
+            {
+                this._version = semver.inc(this._config.currentVersion, "prerelease", false, this.prereleaseSuffix) as string;
+            }
+        }
+    }
+
+    /**
+     * Computes next version for build
+     */
+    private _computeVersion(): void
+    {
+        //commit and matching tag are same, always use release version
+        if(this._currentTag)
+        {
+            this._version = this._lastMatchingVersion;
+
+            return;
+        }
+
+        //new version for current branch, first for current major.minor number
+        if(this._startingVersion)
+        {
+            if(this._config.pre)
+            {
+                this._version = `${this._lastMatchingVersion}-${this.prereleaseSuffix}.0`;
+            }
+            else
+            {
+                this._version = this._lastMatchingVersion;
+            }
+
+            return;
+        }
+
+        let version: ReleaseType = this._config.pre ? "prerelease" : "patch";
+        this._version = semver.inc(this._lastMatchingVersion, version, false, this.prereleaseSuffix) as string;
     }
 
     /**
@@ -268,10 +417,7 @@ export class VersionsExtractor
                                   }
                               }
 
-                              if(!this._config.pre)
-                              {
-                                  this._startingVersion = true;
-                              }
+                              this._startingVersion = true;
 
                               resolve(`${this._branchVersion}.0`);
                           }));
