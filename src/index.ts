@@ -359,6 +359,8 @@ export class VersionsExtractor
                           ],
                           this._errorHandle(result =>
                           {
+                              result = result || '';
+
                               //get array of tag names
                               let tags = (result.split('\n') as string[])
                                   .filter(itm => itm)
