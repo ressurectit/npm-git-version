@@ -19,6 +19,7 @@ export interface IHelpObject
     suffix?: string;
     currentVersion?: string;
     workingDirectory?: string;
+    noStdOut?: boolean;
 }
 
 /**
@@ -36,7 +37,8 @@ export function processArguments(): IHelpObject
         { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned.", defaultValue: false },
         { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
         { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" },
-        { name: "workingDirectory", alias: "w", type: String, description: "Working directory where git repository is located.", typeLabel: "<workingDirectory>" }
+        { name: "workingDirectory", alias: "w", type: String, description: "Working directory where git repository is located.", typeLabel: "<workingDirectory>" },
+        { name: "noStdOut", alias: "n", type: Boolean, description: "Indication that no stdout should be written in case of success run.", defaultValue: false }
     ];
 
     let args: IHelpObject = commandLineArgs(definitions);
@@ -208,7 +210,10 @@ export class VersionsExtractor
         //Tests whether application is run inside git repository
         this._git = git(this._config.workingDirectory).status(this._errorHandle(() =>
         {
-            console.log("Git repository available.");
+            if(!this._config.noStdOut)
+            {
+                console.log("Git repository available.");
+            }
         }));
 
         this._runProcessing();
