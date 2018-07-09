@@ -20,7 +20,9 @@
             "simple-git",
             "command-line-args",
             "command-line-usage",
-            "command-line-usage-options"
+            "command-line-usage-options",
+            "moment",
+            "cross-env"
         ],
         "typeRoots": 
         [

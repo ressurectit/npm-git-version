@@ -1,10 +1,9 @@
 #!/usr/bin/env node
+import * as crossEnv from "cross-env";
 
 import {IHelpObject, processArguments, VersionsExtractor} from "../index";
 
 let args: IHelpObject = processArguments();
-
-
 let extractor: VersionsExtractor = new VersionsExtractor(args);
 
 extractor.process()
@@ -16,6 +15,11 @@ Branch prefix is '${extractor.branchPrefix}'
 Branch version is '${extractor.branchVersion}'
 Last matching version is '${extractor.lastMatchingVersion}'
 Computed version is '${extractor.version}'`);
+
+        if(extractor.executeCommand)
+        {
+            crossEnv([`GIT_VERSION=${extractor.version}`, extractor.executeCommand], {shell: true});
+        }
     })
     .catch(reason =>
     {

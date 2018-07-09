@@ -1,9 +1,76 @@
 import * as git from "simple-git";
 import * as semver from "semver";
+import * as extend from "extend";
 import * as commandLineArgs from "command-line-args";
+import * as path from 'path';
+import * as moment from 'moment';
+
 import commandLineUsage = require("command-line-usage");
 import {UsageOptionDefinition} from 'command-line-usage-options';
 import {ReleaseType} from 'semver';
+
+/**
+ * Reads configuration from ENV variables
+ */
+function processEnvCfg(): IHelpObject
+{
+    let result: IHelpObject = 
+    {
+        config: 'ngv.config.json'
+    };
+
+    if(process.env.NGV_BRANCH_NAME)
+    {
+        result.branchName = process.env.NGV_BRANCH_NAME;
+    }
+
+    if(process.env.NGV_BUILD_NUMBER)
+    {
+        result.buildNumber = parseInt(process.env.NGV_BUILD_NUMBER!);
+    }
+
+    if(process.env.NGV_TAG_PREFIX)
+    {
+        result.tagPrefix = process.env.NGV_TAG_PREFIX;
+    }
+
+    if(process.env.NGV_IGNORE_BRANCH_PREFIX)
+    {
+        result.ignoreBranchPrefix = process.env.NGV_IGNORE_BRANCH_PREFIX;
+    }
+
+    if(process.env.NGV_PRE)
+    {
+        result.pre = process.env.NGV_PRE!.toLocaleUpperCase() == "true";
+    }
+
+    if(process.env.NGV_SUFFIX)
+    {
+        result.suffix = process.env.NGV_SUFFIX;
+    }
+
+    if(process.env.NGV_WORKING_DIRECTORY)
+    {
+        result.workingDirectory = process.env.NGV_WORKING_DIRECTORY;
+    }
+
+    if(process.env.NGV_CURRENT_VERSION)
+    {
+        result.currentVersion = process.env.NGV_CURRENT_VERSION;
+    }
+
+    if(process.env.NGV_NO_STDOUT)
+    {
+        result.noStdOut = process.env.NGV_NO_STDOUT!.toLowerCase() == "true";
+    }
+
+    if(process.env.NGV_EXECUTE)
+    {
+        result.execute = process.env.NGV_EXECUTE;
+    }
+
+    return result;
+}
 
 /**
  * Description of help parameters
@@ -20,6 +87,8 @@ export interface IHelpObject
     currentVersion?: string;
     workingDirectory?: string;
     noStdOut?: boolean;
+    config: string;
+    execute?: string;
 }
 
 /**
@@ -31,17 +100,42 @@ export function processArguments(): IHelpObject
     [
         { name: "help", alias: "h", type: Boolean, description: "Displays help for this command line tool." },
         { name: "branchName", type: String, description: "Name of branch used for getting version, if not specified current branch will be used, if detached error will be thrown.", typeLabel: "<branchName>", defaultOption: true },
-        { name: "buildNumber", alias: "b", type: Number, description: "Build number will be used if suffix is specified, defaults to 0.", typeLabel: "<buildNumber>" },
+        { name: "buildNumber", alias: "b", type: Number, description: "Build number will be used if suffix is specified, defaults to 0, possible to use -1 to autogenerate date time stamp.", typeLabel: "<buildNumber>" },
         { name: "tagPrefix", alias: "t", type: String, description: "Tag prefix (RegExp) used for pairing branch and tag for getting version.", typeLabel: "<prefix>"},
         { name: "ignoreBranchPrefix", alias: "i", type: String, description: "Branch prefix name that will be ignored (RegExp) and stripped of branch during version paring.", typeLabel: "<ignorePrefix>" },
-        { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned.", defaultValue: false },
+        { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned." },
         { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
         { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" },
         { name: "workingDirectory", alias: "w", type: String, description: "Working directory where git repository is located.", typeLabel: "<workingDirectory>" },
-        { name: "noStdOut", alias: "n", type: Boolean, description: "Indication that no stdout should be written in case of success run.", defaultValue: false }
+        { name: "noStdOut", alias: "n", type: Boolean, description: "Indication that no stdout should be written in case of success run." },
+        { name: "config", alias: "c", type: String, description: "Path to configuration file." },
+        { name: "execute", alias: "e", type: String, description: "Execute command with variable '$GIT_VERSION' available." }
     ];
 
-    let args: IHelpObject = commandLineArgs(definitions);
+    let args: IHelpObject = commandLineArgs(definitions) as IHelpObject;
+    let envConfig = processEnvCfg();
+    let fileConfig = {};
+
+    try
+    {
+        let configPath = path.join(process.cwd(), envConfig.config);
+        require.resolve(configPath);
+        fileConfig = require(configPath);
+    }
+    catch(e)
+    {
+        if(!args.noStdOut)
+        {
+            console.log(`No config file '${envConfig.config}' found.`);
+        }
+    }
+
+    args = extend({}, fileConfig, envConfig, args);
+
+    if(args.buildNumber == -1)
+    {
+        args.buildNumber = parseInt(moment().format("YYYYMMDDHHmmss"));
+    }
 
     if(args.help)
     {
@@ -166,6 +260,14 @@ export class VersionsExtractor
     public get lastMatchingVersion(): string
     {
         return this._lastMatchingVersion;
+    }
+
+    /**
+     * Command that should be executed after version is computed
+     */
+    public get executeCommand(): string|undefined
+    {
+        return this._config.execute;
     }
 
     //######################### private properties #########################
