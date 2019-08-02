@@ -92,6 +92,18 @@ export interface IHelpObject
 }
 
 /**
+ * Updates build number, handling special build number -1
+ * @param args Arguments that are being processed
+ */
+export function updateBuildNumber(args: IHelpObject)
+{
+    if(args.buildNumber == -1)
+    {
+        args.buildNumber = parseInt(moment().format("YYYYMMDDHHmmss"));
+    }
+}
+
+/**
  * Process arguments and returns parsed object
  */
 export function processArguments(): IHelpObject
@@ -132,10 +144,7 @@ export function processArguments(): IHelpObject
 
     args = extend({}, fileConfig, envConfig, args);
 
-    if(args.buildNumber == -1)
-    {
-        args.buildNumber = parseInt(moment().format("YYYYMMDDHHmmss"));
-    }
+    updateBuildNumber(args);
 
     if(args.help)
     {
