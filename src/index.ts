@@ -41,7 +41,7 @@ function processEnvCfg(): IHelpObject
 
     if(process.env.NGV_PRE)
     {
-        result.pre = process.env.NGV_PRE!.toLocaleUpperCase() == "true";
+        result.pre = process.env.NGV_PRE!.toLowerCase() == "true";
     }
 
     if(process.env.NGV_SUFFIX)

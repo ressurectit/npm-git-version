@@ -1,6 +1,6 @@
 {
     "name": "npm-git-version",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "description": "NPM utility that gets next version of application according git branch and tags",
     "main": "index.js",
     "typings": "index.d.ts",
