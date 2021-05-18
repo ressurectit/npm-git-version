@@ -14,7 +14,7 @@ import {ReleaseType} from 'semver';
  */
 function processEnvCfg(): IHelpObject
 {
-    let result: IHelpObject = 
+    let result: IHelpObject =
     {
         config: 'ngv.config.json'
     };
@@ -59,6 +59,11 @@ function processEnvCfg(): IHelpObject
         result.currentVersion = process.env.NGV_CURRENT_VERSION;
     }
 
+    if(process.env.NGV_NO_INCREMENT)
+    {
+        result.noIncrement = process.env.NGV_NO_INCREMENT!.toLowerCase() == "true";
+    }
+
     if(process.env.NGV_NO_STDOUT)
     {
         result.noStdOut = process.env.NGV_NO_STDOUT!.toLowerCase() == "true";
@@ -85,6 +90,7 @@ export interface IHelpObject
     pre?: boolean;
     suffix?: string;
     currentVersion?: string;
+    noIncrement?: boolean;
     workingDirectory?: string;
     noStdOut?: boolean;
     config: string;
@@ -118,6 +124,7 @@ export function processArguments(): IHelpObject
         { name: "pre", alias: "p", type: Boolean, description: "Indication that prerelease version should be returned." },
         { name: "suffix", alias: "s", type: String, description: "Suffix that is used when prerelease version is requested, will be used as prerelease (suffix) name.", typeLabel: "<suffix>" },
         { name: "currentVersion", alias: "v", type: String, description: "Current version that will be used if it matches branch and tag as source for next version.", typeLabel: "<version>" },
+        { name: "noIncrement", alias: "r", type: Boolean, description: "Indication whether no new version should be incremented/calculated." },
         { name: "workingDirectory", alias: "w", type: String, description: "Working directory where git repository is located.", typeLabel: "<workingDirectory>" },
         { name: "noStdOut", alias: "n", type: Boolean, description: "Indication that no stdout should be written in case of success run." },
         { name: "config", alias: "c", type: String, description: "Path to configuration file." },
@@ -354,7 +361,7 @@ export class VersionsExtractor
     private _applyBuildNumber(): void
     {
         //release version or current tag is on same commit as HEAD
-        if(!this._config.pre || this._currentTag)
+        if(!this._config.pre || this._currentTag || this._config.noIncrement)
         {
             return;
         }
@@ -383,7 +390,7 @@ export class VersionsExtractor
             if(!currentVersionSemver || !originalVersionSemver)
             {
                 this._processReject(`Unable to parse version '${this._version}' or '${this._config.currentVersion}'!`);
-    
+
                 return;
             }
 
@@ -400,6 +407,14 @@ export class VersionsExtractor
      */
     private _computeVersion(): void
     {
+        //use current version without change
+        if(this._config.currentVersion && this._config.noIncrement)
+        {
+            this._version = this._config.currentVersion;
+
+            return;
+        }
+
         //commit and matching tag are same, always use release version
         if(this._currentTag)
         {
@@ -423,6 +438,12 @@ export class VersionsExtractor
             return;
         }
 
+        //version will not be incremented
+        if(this._config.noIncrement)
+        {
+            return;
+        }
+
         let version: ReleaseType = this._config.pre ? "prerelease" : "patch";
         this._version = semver.inc(this._lastMatchingVersion, version, false, this.prereleaseSuffix) as string;
     }
@@ -434,7 +455,7 @@ export class VersionsExtractor
     {
         this._branchVersion = this._branchName;
 
-        //no profix and wrong format
+        //no prefix and wrong format
         if(!this._config.ignoreBranchPrefix && !/^\d+\.\d+$/g.test(this._branchName))
         {
             this._processReject(`Wrong branch name '${this._branchName}', no prefix specified and branch is not in correct format!`);
@@ -475,14 +496,37 @@ export class VersionsExtractor
                               "--tags",
                               "--no-walk"
                           ],
-                          this._errorHandle(result =>
+                          this._errorHandle((result: string) =>
                           {
                               result = result || '';
 
-                              //get array of tag names
-                              let tags = (result.split('\n') as string[])
+                              //splits string into array of decorated revisions names
+                              let tmpArray = result.split('\n')
                                   .filter(itm => itm)
-                                  .map(itm => itm.replace(/^"|"$/g, ''))
+                                  .map(itm => itm.replace(/^"|"$/g, ''));
+
+                              let resultArray = tmpArray;
+
+                              //current HEAD is on commit with existing old tag
+                              if(tmpArray.some(itm => itm.startsWith('HEAD')))
+                              {
+                                  resultArray = [];
+
+                                  for(let x of tmpArray.reverse())
+                                  {
+                                      resultArray.push(x);
+
+                                      if(x.startsWith('HEAD'))
+                                      {
+                                          resultArray.reverse();
+
+                                          break;
+                                      }
+                                  }
+                              }
+
+                              //get array of tag names
+                              let tags = resultArray
                                   .map(itm => itm.replace(/^.*?tag:\s?(.*?)(?:$|,.*)/g, '$1'))
                                   .filter(itm => itm);
 
@@ -505,7 +549,7 @@ export class VersionsExtractor
                                                                 "-n",
                                                                 "1",
                                                                 tags[x]
-                                                            ], 
+                                                            ],
                                                             this._errorHandle(tagResult =>
                                                             {
                                                                 resolveHash(tagResult.trim());
@@ -515,7 +559,7 @@ export class VersionsExtractor
                                           {
                                               this._git.revparse([
                                                                      "HEAD"
-                                                                 ], 
+                                                                 ],
                                                                  this._errorHandle(tagResult =>
                                                                  {
                                                                      resolveHash(tagResult.trim());
