@@ -10,7 +10,7 @@ import {ReleaseType} from 'semver';
 /**
  * Reads configuration from ENV variables
  */
-function processEnvCfg(): IHelpObject
+export function processEnvCfg(): IHelpObject
 {
     let result: IHelpObject =
     {
@@ -73,6 +73,29 @@ function processEnvCfg(): IHelpObject
     }
 
     return result;
+}
+
+/**
+ * Reads configuration from config file
+ */
+export function processCfgFile(cfg: IHelpObject): IHelpObject|undefined|null
+{
+    let fileConfig: IHelpObject|undefined|null;
+    let configPath = path.join(process.cwd(), cfg.config);
+
+    if(fs.existsSync(configPath))
+    {
+        fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    }
+    else
+    {
+        if(!cfg.noStdOut)
+        {
+            console.log(`No config file '${cfg.config}' found.`);
+        }
+    }
+
+    return fileConfig;
 }
 
 /**
@@ -190,22 +213,9 @@ export function processArguments(): IHelpObject
         .parse() as unknown as IHelpObject;
 
     let envConfig = processEnvCfg();
-    let fileConfig = {};
-    let configPath = path.join(process.cwd(), envConfig.config);
+    let fileConfig = processCfgFile({config: envConfig.config, noStdOut: args.noStdOut})
 
-    if(fs.existsSync(configPath))
-    {
-        fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    }
-    else
-    {
-        if(!args.noStdOut)
-        {
-            console.log(`No config file '${envConfig.config}' found.`);
-        }
-    }
-
-    args = 
+    args =
     {
         ...fileConfig,
         ...envConfig,
@@ -623,7 +633,7 @@ export class VersionsExtractor
         }
 
         const result = await this.git.branch();
-        
+
         if(result.detached)
         {
             throw new Error("Unable to proceed if 'HEAD' is detached and no 'branchName' was specified!");

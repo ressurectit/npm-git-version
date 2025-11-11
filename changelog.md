@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 3.1.0 (2025-11-11)
+
+### Features
+
+- new `processEnvCfg` function, that reads configuration from ENV variables
+- new `processCfgFile` function, that reads configuration from config file
+
 ## Version 3.0.0 (2025-11-11)
 
 ### BREAKING CHANGES
