@@ -1,34 +1,32 @@
 {
     "compilerOptions":
     {
-        "target": "es5",
-        "module": "commonjs",
-        "moduleResolution": "node",
+        "target": "es2022",
+        "module": "node16",
+        "moduleResolution": "node16",
         "sourceMap": false,
         "declaration": true,
         "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitOverride": true,
+        "noImplicitThis": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "strict": true,
         "strictNullChecks": true,
-        "newLine": "LF",
+        "esModuleInterop": true,
+        "importHelpers": true,
+        "useDefineForClassFields": false,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "newLine": "lf",
+        "rootDir": "src",
         "outDir": ".",
-        "lib": 
+        "lib":
         [
-            "es2016"
+            "ES2022",
         ],
-        "types": 
-        [
-            "node",
-            "simple-git",
-            "command-line-args",
-            "command-line-usage",
-            "command-line-usage-options",
-            "moment",
-            "cross-env"
-        ],
-        "typeRoots": 
-        [
-            "node_modules/@anglr/types",
-            "node_modules/@types"
-        ]
+
     },
     "exclude": 
     [

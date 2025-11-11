@@ -1,27 +1,23 @@
 {
     "name": "npm-git-version",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "NPM utility that gets next version of application according git branch and tags",
     "main": "index.js",
     "typings": "index.d.ts",
+    "type": "module",
     "bin": {
         "ngv": "bin/npm-git-version.js"
     },
     "scripts": {
         "prebuild": "npm run clean",
         "build": "npm run tsc",
-        "clean": "rimraf *.d.ts index.js *.map *.log bin",
+        "clean": "rimraf --glob index.d.ts index.js *.map *.log bin",
         "clean:deps": "rimraf node_modules",
         "clean:all": "npm run clean && npm run clean:deps",
         "tsc": "tsc",
         "tsc:w": "tsc -w --sourceMap",
-        "tsc:debug": "tsc --sourceMap",
         "prepublishOnly": "npm run build",
-        "postpublish": "npm run clean",
-        "deploy:stable": "npp -b",
-        "deploy:next": "npp -p -s \"beta\" -t \"next\"",
-        "deploy:stable:local": "npp -b --registry http://local:4873",
-        "deploy:next:local": "npp -p -b -s \"beta\" -t \"next\" --registry http://local:4873"
+        "postpublish": "npm run clean"
     },
     "repository": {
         "type": "git",
@@ -35,22 +31,16 @@
     "author": "kukjevov",
     "license": "MIT",
     "dependencies": {
-        "command-line-args": "~5.1.1",
-        "command-line-usage": "~6.1.1",
-        "cross-env": "~7.0.3",
-        "extend": "~3.0.2",
-        "moment": "~2.29.1",
-        "semver": "~7.3.5",
-        "simple-git": "~2.39.0"
+        "cross-env": ">=10.1.0",
+        "semver": ">=7.7.3",
+        "simple-git": ">=3.30.0",
+        "yargs": ">=18.0.0"
     },
     "devDependencies": {
-        "@types/node": "~15.3.0",
-        "@types/extend": "~3.0.1",
-        "@types/semver": "~7.3.6",
-        "@types/command-line-args": "~5.0.0",
-        "@anglr/types": "1.1.18",
-        "rimraf": "~3.0.2",
-        "typescript": "~4.2.4",
-        "npm-publish-pkg": "1.2.0"
+        "@types/node": "24.10.0",
+        "@types/semver": "7.7.1",
+        "@types/yargs": "17.0.34",
+        "rimraf": "6.1.0",
+        "typescript": "5.9.3"
     }
 }
