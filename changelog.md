@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 3.1.1 (2025-11-12)
+
+### Bug Fixes
+
+- fixed loading config, now uses also command line argument, before only environment variable was used
+- removed `help` from `IHelpObject` interface, because it was not used
+
 ## Version 3.1.0 (2025-11-11)
 
 ### Features

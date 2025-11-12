@@ -103,7 +103,6 @@ export function processCfgFile(cfg: IHelpObject): IHelpObject|undefined|null
  */
 export interface IHelpObject
 {
-    help?: boolean;
     branchName?: string;
     buildNumber?: number;
     tagPrefix?: string;
@@ -213,7 +212,7 @@ export function processArguments(): IHelpObject
         .parse() as unknown as IHelpObject;
 
     let envConfig = processEnvCfg();
-    let fileConfig = processCfgFile({config: envConfig.config, noStdOut: args.noStdOut})
+    let fileConfig = processCfgFile({config: args.config ?? envConfig.config, noStdOut: args.noStdOut})
 
     args =
     {
