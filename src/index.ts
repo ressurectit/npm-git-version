@@ -14,7 +14,8 @@ export function processEnvCfg(): IHelpObject
 {
     let result: IHelpObject =
     {
-        config: 'ngv.config.json'
+        config: 'ngv.config.json',
+        workingDirectory: process.cwd(),
     };
 
     if(process.env.NGV_BRANCH_NAME)
@@ -81,7 +82,7 @@ export function processEnvCfg(): IHelpObject
 export function processCfgFile(cfg: IHelpObject): IHelpObject|undefined|null
 {
     let fileConfig: IHelpObject|undefined|null;
-    let configPath = path.join(process.cwd(), cfg.config);
+    let configPath = path.join(cfg.workingDirectory, cfg.config);
 
     if(fs.existsSync(configPath))
     {
@@ -111,7 +112,7 @@ export interface IHelpObject
     suffix?: string;
     currentVersion?: string;
     noIncrement?: boolean;
-    workingDirectory?: string;
+    workingDirectory: string;
     noStdOut?: boolean;
     config: string;
     execute?: string;
@@ -212,7 +213,7 @@ export function processArguments(): IHelpObject
         .parse() as unknown as IHelpObject;
 
     let envConfig = processEnvCfg();
-    let fileConfig = processCfgFile({config: args.config ?? envConfig.config, noStdOut: args.noStdOut})
+    let fileConfig = processCfgFile({config: args.config ?? envConfig.config, noStdOut: args.noStdOut, workingDirectory: args.workingDirectory ?? envConfig.workingDirectory})
 
     args =
     {

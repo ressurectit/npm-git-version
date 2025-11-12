@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 3.2.0 (2025-11-12)
+
+### Features
+
+- updated `processCfgFile` function, now using `IHelpObject.workingDirectory` as base path for config file
+
 ## Version 3.1.1 (2025-11-12)
 
 ### Bug Fixes
