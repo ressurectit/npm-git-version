@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 4.0.0 (2026-05-19)
+
+### BREAKING CHANGES
+
+- minimal supported version of `semver` is `7.8.0`
+- minimal supported version of `simple-git` is `3.36.0`
+
 ## Version 3.2.0 (2025-11-12)
 
 ### Features
